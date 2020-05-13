@@ -1,0 +1,124 @@
+extern "C" %{
+/*
+ *  Copyright (c) 2010-2020
+ *
+ *  The University of Tennessee and The University
+ *  of Tennessee Research Foundation.  All rights
+ *  reserved.
+ *
+ * @generated d Mon May 11 22:42:41 2020
+ *
+ */
+#include "dplasmajdf.h"
+#include "parsec/data_dist/matrix/matrix.h"
+
+%}
+
+side      [type = "dplasma_enum_t"]
+uplo      [type = "dplasma_enum_t"]
+trans     [type = "dplasma_enum_t"]
+diag      [type = "dplasma_enum_t"]
+alpha     [type = "double"]
+descA     [type = "const parsec_tiled_matrix_dc_t*"]
+descB     [type = "parsec_tiled_matrix_dc_t*"]
+
+
+dtrsm(k,n) [ flops = inline_c %{ return FLOPS_DTRSM(side, CLEAN_MB(descB, k), CLEAN_NB(descB, n)); %}]
+  /* Execution space */
+  k = 0 .. (descB->mt-1)
+  n = 0 /* trsv so single rhs vector */
+
+  : descA(k,k)
+
+  READ  A <- descA(k, k)
+
+  RW    B <- (k>=1) ? E dgemm(k-1, k, n)
+          <- (0==k) ? B read_B0(k)
+          -> B write_B0(k)
+          -> (descB->mt>=(k+2)) ? D dgemm(k, (k+1)..(descB->mt-1), n)
+
+BODY
+{
+    int tempkm = ((k)==(descB->mt-1)) ? (descB->m-(k*descB->mb)) : descB->mb;
+    int tempnn = ((n)==(descB->nt-1)) ? (descB->n-(n*descB->nb)) : descB->nb;
+    double lalpha = ((k)==(0)) ? (alpha) : (double)(1.0);
+    int lda = BLKLDD( descA, k );
+    int ldb = BLKLDD( descB, k );
+
+        CORE_dtrsm(side, uplo, trans, diag,
+                   tempkm, tempnn, lalpha,
+                   A /* descA(k,k) */, lda,
+                   B /* descB(k,n) */, ldb );
+    fprintf(stderr, "DTRSM(%d) on node %d, NT=%d\n", k, descA->super.myrank, descB->mt);
+    printlog("CORE_dtrsm(%d, %d)\n"
+             "\t(side, uplo, trans, diag, tempkm, tempnn, lalpha, descA(%d,%d)[%p], lda, descB(%d,%d)[%p], ldb)\n",
+             k, n, k, k, A, k, n, B);
+}
+END
+
+/*
+ * Pseudo-task
+ */
+read_B0(k) [profile = off]
+  k = 0 .. (descB->mt-1)
+
+  : descB(k,0)
+
+  RW B <- descB(k,0)
+       -> (k==0) ? B dtrsm(k,0)
+	   -> (k>=1) ? E dgemm(0, k, 0)
+BODY
+{
+    /* nothing */
+}
+END
+
+write_B0(k) [profile = off]
+  k = 0 .. (descB->mt-1)
+
+  : descB(k,0)
+
+  RW B <- B dtrsm(k,0)
+       -> descB(k,0)
+BODY
+{
+    /* nothing */
+}
+END
+
+
+dgemm(k,m,n) [ flops = inline_c%{ return FLOPS_DGEMM(CLEAN_MB(descB, m), CLEAN_NB(descB, n), descB->mb); %} ]
+  /* Execution space */
+  k = 0     .. (descB->mt-2)
+  m = (k+1) .. (descB->mt-1)
+  n = 0
+
+  : descA(m,k)
+
+  READ  C <- descA(m, k)
+
+  READ  D <- B dtrsm(k, n)
+  RW    E <- (k>=1) ? E dgemm(k-1, m, n)
+          <- (0==k) ? B read_B0(m)
+          -> (m>=(k+2)) ? E dgemm(k+1, m, n)
+          -> ((k+1)==m) ? B dtrsm(m, n)
+
+BODY
+{
+    double lalpha = ((k)==(0)) ? (alpha) : (double)(1.0);
+    int tempmm = ((m) == (descB->mt-1)) ? (descB->m-(m*descB->mb)) : descB->mb;
+    int tempnn = ((n) == (descB->nt-1)) ? (descB->n-(n*descB->nb)) : descB->nb;
+    int lda  = BLKLDD( descA, m );
+    int ldbk = BLKLDD( descB, k );
+    int ldb  = BLKLDD( descB, m );
+
+        CORE_dgemm(dplasmaNoTrans, dplasmaNoTrans,
+                   tempmm, tempnn, descB->mb,
+                   -1.,    C /* descA(m,k) */, lda,
+                           D /* descB(k,n) */, ldbk,
+                   lalpha, E /* descB(m,n) */, ldb );
+    printlog("CORE_dgemm(%d, %d, %d)\n"
+             "\t(dplasmaNoTrans, dplasmaNoTrans, tempmm, tempnn, descB->mb, mzone, descA(%d,%d)[%p], lda, descB(%d,%d)[%p], descB->mb, lalpha, descB(%d,%d)[%p], ldb)\n",
+             k, m, n, m, k, C, k, n, D, m, n, E);
+}
+END
