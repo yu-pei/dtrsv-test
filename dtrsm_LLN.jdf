@@ -32,10 +32,10 @@ dtrsm(k,n) [ flops = inline_c %{ return FLOPS_DTRSM(side, CLEAN_MB(descB, k), CL
 
   READ  A <- descA(k, k)
 
-  RW    B <- (k>=1) ? E dgemm(k-1, k, n)
-          <- (0==k) ? B read_B0(k)
-          -> B write_B0(k)
-          -> (descB->mt>=(k+2)) ? D dgemm(k, (k+1)..(descB->mt-1), n)
+  RW    B <- (k>=1) ? E dgemm(k-1, k, n) [layout = MPI_DOUBLE count=descB->mb]
+          <- (0==k) ? B read_B0(k) [layout = MPI_DOUBLE count=descB->mb]
+          -> B write_B0(k) [layout = MPI_DOUBLE count=descB->mb]
+          -> (descB->mt>=(k+2)) ? D dgemm(k, (k+1)..(descB->mt-1), n) [layout = MPI_DOUBLE count=descB->mb]
 CTL ctl -> (k > 0 & k <= 500 ) ? ctl dgemm(k-1, k+32..descB->mt-1, n)
 BODY
 {
@@ -49,7 +49,7 @@ BODY
                    tempkm, tempnn, lalpha,
                    A /* descA(k,k) */, lda,
                    B /* descB(k,n) */, ldb );
-    //fprintf(stderr, "DTRSM(%d) on node %d, NT=%d\n", k, descA->super.myrank, descB->mt);
+    //if(k%100 ==0)fprintf(stderr, "DTRSM(%d) on node %d, NT=%d\n", k, descA->super.myrank, descB->mt);
     printlog("CORE_dtrsm(%d, %d)\n"
              "\t(side, uplo, trans, diag, tempkm, tempnn, lalpha, descA(%d,%d)[%p], lda, descB(%d,%d)[%p], ldb)\n",
              k, n, k, k, A, k, n, B);
@@ -65,8 +65,8 @@ read_B0(k) [profile = off]
   : descB(k,0)
 
   RW B <- descB(k,0)
-       -> (k==0) ? B dtrsm(k,0)
-	   -> (k>=1) ? E dgemm(0, k, 0)
+       -> (k==0) ? B dtrsm(k,0) [layout = MPI_DOUBLE count=descB->mb]
+	   -> (k>=1) ? E dgemm(0, k, 0) [layout = MPI_DOUBLE count=descB->mb]
 BODY
 {
     /* nothing */
@@ -78,7 +78,7 @@ write_B0(k) [profile = off]
 
   : descB(k,0)
 
-  RW B <- B dtrsm(k,0)
+  RW B <- B dtrsm(k,0) [layout = MPI_DOUBLE count=descB->mb]
        -> descB(k,0)
 BODY
 {
@@ -97,11 +97,11 @@ dgemm(k,m,n) [ flops = inline_c%{ return FLOPS_DGEMM(CLEAN_MB(descB, m), CLEAN_N
 
   READ  C <- descA(m, k)
 
-  READ  D <- B dtrsm(k, n)
-  RW    E <- (k>=1) ? E dgemm(k-1, m, n)
-          <- (0==k) ? B read_B0(m)
-          -> (m>=(k+2)) ? E dgemm(k+1, m, n)
-          -> ((k+1)==m) ? B dtrsm(m, n)
+  READ  D <- B dtrsm(k, n) [layout = MPI_DOUBLE count=descB->mb]
+  RW    E <- (k>=1) ? E dgemm(k-1, m, n) [layout = MPI_DOUBLE count=descB->mb]
+          <- (0==k) ? B read_B0(m) [layout = MPI_DOUBLE count=descB->mb]
+          -> (m>=(k+2)) ? E dgemm(k+1, m, n) [layout = MPI_DOUBLE count=descB->mb]
+          -> ((k+1)==m) ? B dtrsm(m, n) [layout = MPI_DOUBLE count=descB->mb]
 CTL ctl <- (k < 500 & m > k+32) ? ctl dtrsm(k+1, n)
 BODY
 {
