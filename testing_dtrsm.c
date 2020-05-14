@@ -76,29 +76,18 @@ int main(int argc, char ** argv)
         dplasma_enum_t trans = dplasmaNoTrans;
         dplasma_enum_t diag  = dplasmaUnit;
 
-        /* Make A square */
-        if (side == dplasmaLeft) {
-            dcA = tiled_matrix_submatrix( (parsec_tiled_matrix_dc_t *)&dcA0, 0, 0, M, M );
-        } else {
-            dcA = tiled_matrix_submatrix( (parsec_tiled_matrix_dc_t *)&dcA0, 0, 0, N, N );
-        }
-
-        /* Compute b = 1/alpha * A * x */
-        dplasma_dtrmm(parsec, side, uplo, trans, diag, 1. / alpha,
-                      dcA, (parsec_tiled_matrix_dc_t *)&dcC);
 
         PASTE_CODE_FLOPS(FLOPS_DTRSM, (side, (DagDouble_t)M, (DagDouble_t)N));
 
         /* Create PaRSEC */
         PASTE_CODE_ENQUEUE_KERNEL(parsec, dtrsm,
                                   (side, uplo, trans, diag, alpha,
-                                   dcA, (parsec_tiled_matrix_dc_t *)&dcC));
+                                   &dcA0, (parsec_tiled_matrix_dc_t *)&dcC));
 
         /* lets rock! */
         PASTE_CODE_PROGRESS_KERNEL(parsec, dtrsm);
 
         dplasma_dtrsm_Destruct( PARSEC_dtrsm );
-        free(dcA);
     }
     else
     {

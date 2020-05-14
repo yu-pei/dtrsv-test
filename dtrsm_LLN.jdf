@@ -36,7 +36,7 @@ dtrsm(k,n) [ flops = inline_c %{ return FLOPS_DTRSM(side, CLEAN_MB(descB, k), CL
           <- (0==k) ? B read_B0(k)
           -> B write_B0(k)
           -> (descB->mt>=(k+2)) ? D dgemm(k, (k+1)..(descB->mt-1), n)
-
+CTL ctl -> (k > 0 & k <= 500 ) ? ctl dgemm(k-1, k+32..descB->mt-1, n)
 BODY
 {
     int tempkm = ((k)==(descB->mt-1)) ? (descB->m-(k*descB->mb)) : descB->mb;
@@ -49,7 +49,7 @@ BODY
                    tempkm, tempnn, lalpha,
                    A /* descA(k,k) */, lda,
                    B /* descB(k,n) */, ldb );
-    fprintf(stderr, "DTRSM(%d) on node %d, NT=%d\n", k, descA->super.myrank, descB->mt);
+    //fprintf(stderr, "DTRSM(%d) on node %d, NT=%d\n", k, descA->super.myrank, descB->mt);
     printlog("CORE_dtrsm(%d, %d)\n"
              "\t(side, uplo, trans, diag, tempkm, tempnn, lalpha, descA(%d,%d)[%p], lda, descB(%d,%d)[%p], ldb)\n",
              k, n, k, k, A, k, n, B);
@@ -102,7 +102,7 @@ dgemm(k,m,n) [ flops = inline_c%{ return FLOPS_DGEMM(CLEAN_MB(descB, m), CLEAN_N
           <- (0==k) ? B read_B0(m)
           -> (m>=(k+2)) ? E dgemm(k+1, m, n)
           -> ((k+1)==m) ? B dtrsm(m, n)
-
+CTL ctl <- (k < 500 & m > k+32) ? ctl dtrsm(k+1, n)
 BODY
 {
     double lalpha = ((k)==(0)) ? (alpha) : (double)(1.0);
