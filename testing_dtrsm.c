@@ -76,7 +76,7 @@ int main(int argc, char ** argv)
         dplasma_enum_t trans = dplasmaNoTrans;
         dplasma_enum_t diag  = dplasmaUnit;
 
-
+        //sleep(30); 
         PASTE_CODE_FLOPS(FLOPS_DTRSM, (side, (DagDouble_t)M, (DagDouble_t)N));
 
         /* Create PaRSEC */
@@ -94,7 +94,7 @@ int main(int argc, char ** argv)
         int s, u, t, d;
         int info_solution;
 
-        for (s=0; s<2; s++) {
+        for (s=0; s<1; s++) {
             /* Make A square */
             if (side[s] == dplasmaLeft) {
                 dcA = tiled_matrix_submatrix( (parsec_tiled_matrix_dc_t *)&dcA0, 0, 0, M, M );
@@ -102,13 +102,13 @@ int main(int argc, char ** argv)
                 dcA = tiled_matrix_submatrix( (parsec_tiled_matrix_dc_t *)&dcA0, 0, 0, N, N );
             }
 
-            for (u=0; u<2; u++) {
+            for (u=1; u<2; u++) {
 #if defined(PRECISION_z) || defined(PRECISION_c)
                 for (t=0; t<3; t++) {
 #else
-                for (t=0; t<2; t++) {
+                for (t=0; t<1; t++) {
 #endif
-                    for (d=0; d<2; d++) {
+                    for (d=0; d<1; d++) {
 
                         if ( rank == 0 ) {
                             printf("***************************************************\n");

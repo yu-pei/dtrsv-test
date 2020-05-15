@@ -14,13 +14,6 @@
 #include "dplasmaaux.h"
 
 #include "dtrsm_LLN.h"
-#include "dtrsm_LLT.h"
-#include "dtrsm_LUN.h"
-#include "dtrsm_LUT.h"
-#include "dtrsm_RLN.h"
-#include "dtrsm_RLT.h"
-#include "dtrsm_RUN.h"
-#include "dtrsm_RUT.h"
 
 /**
  *******************************************************************************
@@ -107,57 +100,23 @@ dplasma_dtrsm_New( dplasma_enum_t side,  dplasma_enum_t uplo,
                     side, uplo, trans, diag, alpha,
                     A,
                     B);
-            } else { /* trans =! dplasmaNoTrans */
-                parsec_trsm = (parsec_taskpool_t*)parsec_dtrsm_LLT_new(
-                    side, uplo, trans, diag, alpha,
-                    A,
-                    B);
-            }
-        } else { /* uplo = dplasmaUpper */
-            if ( trans == dplasmaNoTrans ) {
-                parsec_trsm = (parsec_taskpool_t*)parsec_dtrsm_LUN_new(
-                    side, uplo, trans, diag, alpha,
-                    A,
-                    B);
-            } else { /* trans =! dplasmaNoTrans */
-                parsec_trsm = (parsec_taskpool_t*)parsec_dtrsm_LUT_new(
-                    side, uplo, trans, diag, alpha,
-                    A,
-                    B);
-            }
-        }
-    } else { /* side == dplasmaRight */
-        if ( uplo == dplasmaLower ) {
-            if ( trans == dplasmaNoTrans ) {
-                parsec_trsm = (parsec_taskpool_t*)parsec_dtrsm_RLN_new(
-                    side, uplo, trans, diag, alpha,
-                    A,
-                    B);
-            } else { /* trans =! dplasmaNoTrans */
-                parsec_trsm = (parsec_taskpool_t*)parsec_dtrsm_RLT_new(
-                    side, uplo, trans, diag, alpha,
-                    A,
-                    B);
-            }
-        } else { /* uplo = dplasmaUpper */
-            if ( trans == dplasmaNoTrans ) {
-                parsec_trsm = (parsec_taskpool_t*)parsec_dtrsm_RUN_new(
-                    side, uplo, trans, diag, alpha,
-                    A,
-                    B);
-            } else { /* trans =! dplasmaNoTrans */
-                parsec_trsm = (parsec_taskpool_t*)parsec_dtrsm_RUT_new(
-                    side, uplo, trans, diag, alpha,
-                    A,
-                    B);
-            }
+            } 
         }
     }
-
-    dplasma_add2arena_tile(((parsec_dtrsm_LLN_taskpool_t*)parsec_trsm)->arenas[PARSEC_dtrsm_LLN_DEFAULT_ARENA],
-                           A->mb*A->nb*sizeof(double),
-                           PARSEC_ARENA_ALIGNMENT_SSE,
-                           parsec_datatype_double_t, A->mb);
+	int rc;
+    rc = parsec_matrix_add2arena(((parsec_dtrsm_LLN_taskpool_t*)parsec_trsm)->arenas[PARSEC_dtrsm_LLN_FULL_ARENA],
+			                parsec_datatype_double_t, matrix_UpperLower,
+							1, A->mb, A->nb, A->mb,
+							PARSEC_ARENA_ALIGNMENT_SSE, -1 );
+    parsec_matrix_add2arena(((parsec_dtrsm_LLN_taskpool_t*)parsec_trsm)->arenas[PARSEC_dtrsm_LLN_VECTOR_ARENA],
+			                parsec_datatype_double_t, matrix_UpperLower,
+							1, A->mb, 1, A->mb,
+							PARSEC_ARENA_ALIGNMENT_SSE, -1 );
+    
+	parsec_matrix_add2arena(((parsec_dtrsm_LLN_taskpool_t*)parsec_trsm)->arenas[PARSEC_dtrsm_LLN_DEFAULT_ARENA],
+			                parsec_datatype_double_t, matrix_UpperLower,
+							1, 1, 1, 1,
+							PARSEC_ARENA_ALIGNMENT_SSE, -1 );
 
     return parsec_trsm;
 }
@@ -188,6 +147,8 @@ dplasma_dtrsm_Destruct( parsec_taskpool_t *tp )
     parsec_dtrsm_LLN_taskpool_t *otrsm = (parsec_dtrsm_LLN_taskpool_t *)tp;
 
     parsec_matrix_del2arena( otrsm->arenas[PARSEC_dtrsm_LLN_DEFAULT_ARENA] );
+    parsec_matrix_del2arena( otrsm->arenas[PARSEC_dtrsm_LLN_FULL_ARENA] );
+    parsec_matrix_del2arena( otrsm->arenas[PARSEC_dtrsm_LLN_VECTOR_ARENA] );
     parsec_taskpool_free(tp);
 }
 
@@ -271,11 +232,11 @@ dplasma_dtrsm( parsec_context_t *parsec,
     parsec_taskpool_t *parsec_dtrsm = NULL;
 
     /* Check input arguments */
-    if (side != dplasmaLeft && side != dplasmaRight) {
+    if (side != dplasmaLeft ) {
         dplasma_error("dplasma_dtrsm", "illegal value of side");
         return -1;
     }
-    if (uplo != dplasmaUpper && uplo != dplasmaLower) {
+    if (uplo != dplasmaLower) {
         dplasma_error("dplasma_dtrsm", "illegal value of uplo");
         return -2;
     }

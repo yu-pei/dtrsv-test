@@ -38,10 +38,10 @@ GENERATED_OBJ = $(subst .jdf,.o,${JDFS})
 common.o: common.c
 	${CC} -o $@ -c $< ${CFLAGS}
 
-testing_dtrsm.o: testing_dtrsm.c dtrsm_LLN.c
+testing_dtrsm.o: testing_dtrsm.c dtrsm_LLN.c dtrsm_wrapper.c
 	${CC} -o $@ -c $< ${CFLAGS}
 
-testing_dtrsm: testing_dtrsm.o dtrsm_LLN.o common.o
+testing_dtrsm: testing_dtrsm.o dtrsm_LLN.o dtrsm_wrapper.o common.o
 	${CC} -o $@ $^ ${LDFLAGS}
 
 common_scalapack.o: common_scalapack.c
