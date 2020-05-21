@@ -11,7 +11,7 @@ extern "C" %{
  */
 #include "dplasmajdf.h"
 #include "parsec/data_dist/matrix/matrix.h"
-
+//#define DRYRUN 1
 %}
 
 side      [type = "dplasma_enum_t"]
@@ -39,16 +39,21 @@ dtrsm(k,n) [ flops = inline_c %{ return FLOPS_DTRSM(side, CLEAN_MB(descB, k), CL
 CTL ctl -> (k > 0 & k <= 500 ) ? ctl dgemm(k-1, k+32..descB->mt-1, n)
 BODY
 {
+#ifndef DRYRUN
     int tempkm = ((k)==(descB->mt-1)) ? (descB->m-(k*descB->mb)) : descB->mb;
     int tempnn = ((n)==(descB->nt-1)) ? (descB->n-(n*descB->nb)) : descB->nb;
     double lalpha = ((k)==(0)) ? (alpha) : (double)(1.0);
     int lda = BLKLDD( descA, k );
     int ldb = BLKLDD( descB, k );
-
-        CORE_dtrsm(side, uplo, trans, diag,
-                   tempkm, tempnn, lalpha,
-                   A /* descA(k,k) */, lda,
-                   B /* descB(k,n) */, ldb );
+//	double starttime, endtime;
+//	starttime = MPI_Wtime();
+	CORE_dtrsm(side, uplo, trans, diag,
+			tempkm, tempnn, lalpha,
+			A /* descA(k,k) */, lda,
+			B /* descB(k,n) */, ldb );
+//	endtime   = MPI_Wtime();
+//	printf("That took %f microseconds\n",1.e3*(endtime-starttime));
+#endif
     if(k%100 ==0)fprintf(stderr, "DTRSM(%d) on node %d, NT=%d\n", k, descA->super.myrank, descB->mt);
     printlog("CORE_dtrsm(%d, %d)\n"
              "\t(side, uplo, trans, diag, tempkm, tempnn, lalpha, descA(%d,%d)[%p], lda, descB(%d,%d)[%p], ldb)\n",
@@ -105,6 +110,7 @@ dgemm(k,m,n) [ flops = inline_c%{ return FLOPS_DGEMM(CLEAN_MB(descB, m), CLEAN_N
 CTL ctl <- (k < 500 & m > k+32) ? ctl dtrsm(k+1, n)
 BODY
 {
+#ifndef DRYRUN
     double lalpha = ((k)==(0)) ? (alpha) : (double)(1.0);
     int tempmm = ((m) == (descB->mt-1)) ? (descB->m-(m*descB->mb)) : descB->mb;
     int tempnn = ((n) == (descB->nt-1)) ? (descB->n-(n*descB->nb)) : descB->nb;
@@ -117,7 +123,8 @@ BODY
                    -1.,    C /* descA(m,k) */, lda,
                            D /* descB(k,n) */, ldbk,
                    lalpha, E /* descB(m,n) */, ldb );
-    printlog("CORE_dgemm(%d, %d, %d)\n"
+#endif
+		printlog("CORE_dgemm(%d, %d, %d)\n"
              "\t(dplasmaNoTrans, dplasmaNoTrans, tempmm, tempnn, descB->mb, mzone, descA(%d,%d)[%p], lda, descB(%d,%d)[%p], descB->mb, lalpha, descB(%d,%d)[%p], ldb)\n",
              k, m, n, m, k, C, k, n, D, m, n, E);
 }

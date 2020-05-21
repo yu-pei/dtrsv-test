@@ -14,7 +14,7 @@
 #include "dplasmaaux.h"
 
 #include "dtrsm_LLN.h"
-
+#include "dtrsm_LLT.h"
 /**
  *******************************************************************************
  *
@@ -100,7 +100,12 @@ dplasma_dtrsm_New( dplasma_enum_t side,  dplasma_enum_t uplo,
                     side, uplo, trans, diag, alpha,
                     A,
                     B);
-            } 
+            } else { /* trans =! dplasmaNoTrans */
+				parsec_trsm = (parsec_taskpool_t*)parsec_dtrsm_LLT_new(
+					side, uplo, trans, diag, alpha,
+					A,
+					B);
+			}
         }
     }
 	int rc;
@@ -112,12 +117,6 @@ dplasma_dtrsm_New( dplasma_enum_t side,  dplasma_enum_t uplo,
 			                parsec_datatype_double_t, matrix_UpperLower,
 							1, A->mb, 1, A->mb,
 							PARSEC_ARENA_ALIGNMENT_SSE, -1 );
-    
-	parsec_matrix_add2arena(((parsec_dtrsm_LLN_taskpool_t*)parsec_trsm)->arenas[PARSEC_dtrsm_LLN_DEFAULT_ARENA],
-			                parsec_datatype_double_t, matrix_UpperLower,
-							1, 1, 1, 1,
-							PARSEC_ARENA_ALIGNMENT_SSE, -1 );
-
     return parsec_trsm;
 }
 
@@ -146,7 +145,6 @@ dplasma_dtrsm_Destruct( parsec_taskpool_t *tp )
 {
     parsec_dtrsm_LLN_taskpool_t *otrsm = (parsec_dtrsm_LLN_taskpool_t *)tp;
 
-    parsec_matrix_del2arena( otrsm->arenas[PARSEC_dtrsm_LLN_DEFAULT_ARENA] );
     parsec_matrix_del2arena( otrsm->arenas[PARSEC_dtrsm_LLN_FULL_ARENA] );
     parsec_matrix_del2arena( otrsm->arenas[PARSEC_dtrsm_LLN_VECTOR_ARENA] );
     parsec_taskpool_free(tp);

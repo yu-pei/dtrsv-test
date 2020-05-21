@@ -102,11 +102,11 @@ int main(int argc, char ** argv)
                 dcA = tiled_matrix_submatrix( (parsec_tiled_matrix_dc_t *)&dcA0, 0, 0, N, N );
             }
 
-            for (u=1; u<2; u++) {
+            for (u=1; u<2; u++) { /* dplasmaLower */
 #if defined(PRECISION_z) || defined(PRECISION_c)
                 for (t=0; t<3; t++) {
 #else
-                for (t=0; t<1; t++) {
+                for (t=0; t<2; t++) { /* dplasmaNoTrans=0, dplasmaTrans=1 */
 #endif
                     for (d=0; d<1; d++) {
 
