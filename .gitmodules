@@ -1,0 +1,3 @@
+[submodule "dplasma"]
+	path = dplasma
+	url = https://bitbucket.org/icldistcomp/dplasma
