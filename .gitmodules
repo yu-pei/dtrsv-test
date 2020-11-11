@@ -1,3 +1,4 @@
 [submodule "dplasma"]
 	path = dplasma
-	url = https://bitbucket.org/icldistcomp/dplasma
+	url = https://bitbucket.org/yupei2/dplasma
+	branch = hicma-x-dev
