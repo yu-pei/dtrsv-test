@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.12)
+cmake_minimum_required (VERSION 3.16)
 project (DTRSM C)
 
 include(CMakeDependentOption)
@@ -53,6 +53,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 STRING(COMPARE EQUAL ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR} DTRSM_BUILD_INPLACE)
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/dplasma/cmake_modules/")
+LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/dplasma/parsec/cmake_modules/")
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/dplasma/tools/PrecisionGenerator/")
 
 #set(BLA_VENDOR CACHE STRING "Possible valid values are: Intel10_64lp_seq, IBMESSL, Apple, or All, which will default to something like Goto or ATLAS")
@@ -80,22 +81,64 @@ endif(NOT EXISTS "${PROJECT_SOURCE_DIR}/dplasma/CMakeLists.txt")
 
 #option(PARSEC_WITH_DEVEL_HEADERS "" ON)
 add_subdirectory(dplasma)
-# Import targets and load dependent libraries
-#find_package(parsec-submodule NO_DEFAULT_PATH PATHS ${CMAKE_CURRENT_BINARY_DIR}/parsec REQUIRED)
-#set(DPLASMA_FORCE_INTERNAL_PARSEC ${PaRSEC_FOUND} CACHE BOOL "Force using the internal PaRSEC submodule (submodule used in previous configure)" FORCE)
-
-
-# Export Targets
-#install(EXPORT dplasma-targets # rules to export the targets built here
-#  FILE dplasma-targets.cmake
-#  NAMESPACE DPlasma::
-#  DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake/dplasma)
 
 # cmake config files
 #include(CMakePackageConfigHelpers)
 
-#add_custom_target(build_with_dplasma ALL DEPENDS ${pattern_files_dest})
-add_library(MyLibExample dtrsm_LLT.c dtrsm_LLN.c dtrsm_LLT.h dtrsm_LLN.h)
 
-add_executable(MyExample testing_dtrsm.c)
-target_link_libraries(MyExample PRIVATE dplasma MyLibExample)
+include(DplasmaCompilerFlags)
+#include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}")
+#include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/include")
+#if(NOT DPLASMA_BUILD_INPLACE)
+#    include_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}")
+#    include_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+#endif(NOT DPLASMA_BUILD_INPLACE)
+#Add_Subdirectory(include)
+#Add_Subdirectory(cores)
+
+include(ParsecCompilePTG)
+
+### Generate .c files from .jdf for all required precisions
+set(generated_jdf
+    dtrsm_LLN.jdf dtrsm_LLT.jdf
+    )
+
+#precisions_rules_py(generated_jdf
+#    "${JDF}"
+#    PRECISIONS "${DPLASMA_PRECISIONS}")
+
+set(generated_wrappers
+    dtrsm_wrapper.c
+    )
+
+add_executable(dtrsm testing_dtrsm.c common.c common.h)
+target_link_libraries(dtrsm PRIVATE dplasma )
+
+target_ptg_sources(dtrsm PRIVATE
+    ${generated_jdf})
+
+target_include_directories(dtrsm
+    INTERFACE
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/dplasma/src>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/dplasma/tests>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/tests>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/include>
+    $<$<NOT:${DPLASMA_BUILD_INPLACE}>:
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src>
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/include>>)
+#target_compile_definitions(dtrsm PUBLIC $<$<BOOL:${DPLASMA_WITH_RECURSIVE}>:DPLASMA_HAVE_RECURSIVE>)
+
+set_target_properties(dtrsm PROPERTIES POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS})
+
+target_link_libraries(dtrsm
+    PRIVATE
+    dplasma_cores
+    PUBLIC
+    PaRSEC::parsec
+    LAPACKE::LAPACKE
+    $<$<BOOL:${DPLASMA_HAVE_CUDA}>:${CUDA_CUBLAS_LIBRARIES}>)
+#set_target_properties(dtrsm PROPERTIES VERSION ${DPLASMA_VERSION_MAJOR}.${DPLASMA_VERSION_MINOR}
+#    SOVERSION ${DPLASMA_VERSION_MAJOR})
+
