@@ -11,9 +11,8 @@ include(GNUInstallDirs)
 # The current version number
 set (DTRSM_VERSION_MAJOR 2)
 set (DTRSM_VERSION_MINOR 0)
-set (DTRSM_VERSION_PATCH 0)
 
-SET(DTRSM_VERSION "${DPLASMA_VERSION_MAJOR}.${DPLASMA_VERSION_MINOR}")
+SET(DTRSM_VERSION "${DTRSM_VERSION_MAJOR}.${DTRSM_VERSION_MINOR}")
 
 set(CMAKE_NO_SYSTEM_FROM_IMPORTED True)
 
@@ -87,12 +86,9 @@ add_subdirectory(dplasma)
 
 
 include(DplasmaCompilerFlags)
-#include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}")
-#include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/include")
-#if(NOT DPLASMA_BUILD_INPLACE)
-#    include_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}")
-#    include_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-#endif(NOT DPLASMA_BUILD_INPLACE)
+include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}")
+include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/include")
+include_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/dplasma/tests")
 #Add_Subdirectory(include)
 #Add_Subdirectory(cores)
 
@@ -123,12 +119,12 @@ target_include_directories(dtrsm
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/dplasma/src>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/dplasma/tests>
+    ${PROJECT_SOURCE_DIR}/dplasma/tests
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/tests>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/include>
     $<$<NOT:${DPLASMA_BUILD_INPLACE}>:
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src>
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/include>>)
-#target_compile_definitions(dtrsm PUBLIC $<$<BOOL:${DPLASMA_WITH_RECURSIVE}>:DPLASMA_HAVE_RECURSIVE>)
 
 set_target_properties(dtrsm PROPERTIES POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS})
 

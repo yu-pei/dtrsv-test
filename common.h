@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-/* math libs */
+/* Plasma and math libs */
 #include <math.h>
 #include <cblas.h>
 #include <lapacke.h>
@@ -23,12 +23,12 @@
 #include "parsec/parsec_internal.h"
 #include "parsec/utils/debug.h"
 #include "dplasma.h"
-#include "dplasma/types.h"
+#include "dplasmatypes.h"
 
-#include "cores/core_blas.h"
-
+#include <core_blas.h>
 /* timings */
 #include "common_timing.h"
+
 #include "flops.h"
 
 /* these are globals in common.c */
@@ -41,7 +41,6 @@ enum iparam_t {
   IPARAM_RANK,         /* Rank                              */
   IPARAM_NNODES,       /* Number of nodes                   */
   IPARAM_NCORES,       /* Number of cores                   */
-  IPARAM_THREAD_MT,    /* Multithreaded MPI                 */
   IPARAM_NGPUS,        /* Number of GPUs                    */
   IPARAM_P,            /* Rows in the process grid          */
   IPARAM_Q,            /* Columns in the process grid       */
@@ -107,8 +106,8 @@ void iparam_default_ibnbmb(int* iparam, int ib, int nb, int mb);
     int IB    = iparam[IPARAM_IB];                                      \
     int MB    = iparam[IPARAM_MB];                                      \
     int NB    = iparam[IPARAM_NB];                                      \
-    int KP    = iparam[IPARAM_KP];                                      \
-    int KQ    = iparam[IPARAM_KQ];                                      \
+    int SMB   = iparam[IPARAM_KP];                                      \
+    int SNB   = iparam[IPARAM_KQ];                                      \
     int HMB   = iparam[IPARAM_HMB];                                     \
     int HNB   = iparam[IPARAM_HNB];                                     \
     int MT    = (M%MB==0) ? (M/MB) : (M/MB+1);                          \
@@ -124,7 +123,7 @@ void iparam_default_ibnbmb(int* iparam, int ib, int nb, int mb);
     int async = iparam[IPARAM_ASYNC];                                   \
     (void)rank;(void)nodes;(void)cores;(void)gpus;(void)P;(void)Q;(void)M;(void)N;(void)K;(void)NRHS; \
     (void)LDA;(void)LDB;(void)LDC;(void)IB;(void)MB;(void)NB;(void)MT;(void)NT;(void)KT; \
-    (void)KP;(void)KQ;(void)HMB;(void)HNB;(void)check;(void)loud;(void)async; \
+    (void)SMB;(void)SNB;(void)HMB;(void)HNB;(void)check;(void)loud;(void)async; \
     (void)scheduler;(void)butterfly_level;(void)check_inv;(void)random_seed;(void)matrix_init;
 
 /* Define a double type which not pass through the precision generation process */
@@ -206,7 +205,6 @@ static inline int min(int a, int b) { return a < b ? a : b; }
     PROFILING_SAVE_iINFO("PARAM_RANK", iparam[IPARAM_RANK]);            \
     PROFILING_SAVE_iINFO("PARAM_NNODES", iparam[IPARAM_NNODES]);        \
     PROFILING_SAVE_iINFO("PARAM_NCORES", iparam[IPARAM_NCORES]);        \
-    PROFILING_SAVE_iINFO("PARAM_THREAD_MT", iparam[IPARAM_THREAD_MT]);  \
     PROFILING_SAVE_iINFO("PARAM_NGPUS", iparam[IPARAM_NGPUS]);          \
     PROFILING_SAVE_iINFO("PARAM_P", iparam[IPARAM_P]);                  \
     PROFILING_SAVE_iINFO("PARAM_Q", iparam[IPARAM_Q]);                  \

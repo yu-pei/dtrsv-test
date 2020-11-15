@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2009-2020 The University of Tennessee and The University
+ * Copyright (c) 2009-2011 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  *
- * @generated d Mon May 11 22:44:01 2020
+ * @generated d Sun Nov 15 14:18:59 2020
  *
  */
 
@@ -45,70 +45,81 @@ int main(int argc, char ** argv)
     PASTE_CODE_ALLOCATE_MATRIX(dcA0, 1,
         two_dim_block_cyclic, (&dcA0, matrix_RealDouble, matrix_Tile,
                                nodes, rank, MB, NB, LDA, Am, 0, 0,
-                               Am, Am, KP, KQ, P));
+                               Am, Am, SMB, SNB, P));
     PASTE_CODE_ALLOCATE_MATRIX(dcC, 1,
         two_dim_block_cyclic, (&dcC, matrix_RealDouble, matrix_Tile,
                                nodes, rank, MB, NB, LDC, N, 0, 0,
-                               M, N, KP, KQ, P));
+                               M, N, SMB, SNB, P));
     PASTE_CODE_ALLOCATE_MATRIX(dcC0, check,
         two_dim_block_cyclic, (&dcC0, matrix_RealDouble, matrix_Tile,
                                nodes, rank, MB, NB, LDC, N, 0, 0,
-                               M, N, KP, KQ, P));
+                               M, N, SMB, SNB, P));
 
     /* matrix generation */
     if(loud > 2) printf("+++ Generate matrices ... ");
     /* Generate matrix A with diagonal dominance to keep stability during computation */
     dplasma_dplrnt( parsec, 1, (parsec_tiled_matrix_dc_t *)&dcA0, Aseed);
-    /* Scale down the full matrix to keep stability in diag = dplasmaUnit case */
-    dplasma_dlascal( parsec, dplasmaUpperLower,
+    /* Scale down the full matrix to keep stability in diag = PlasmaUnit case */
+    dplasma_dlascal( parsec, PlasmaUpperLower,
                      1. / (double)Am,
                      (parsec_tiled_matrix_dc_t *)&dcA0 );
     dplasma_dplrnt( parsec, 0, (parsec_tiled_matrix_dc_t *)&dcC, Cseed);
     if (check)
-        dplasma_dlacpy( parsec, dplasmaUpperLower,
+        dplasma_dlacpy( parsec, PlasmaUpperLower,
                         (parsec_tiled_matrix_dc_t *)&dcC, (parsec_tiled_matrix_dc_t *)&dcC0 );
     if(loud > 2) printf("Done\n");
 
     if(!check)
     {
-        dplasma_enum_t side  = dplasmaLeft;
-        dplasma_enum_t uplo  = dplasmaLower;
-        dplasma_enum_t trans = dplasmaNoTrans;
-        dplasma_enum_t diag  = dplasmaUnit;
+        PLASMA_enum side  = PlasmaLeft;
+        PLASMA_enum uplo  = PlasmaLower;
+        PLASMA_enum trans = PlasmaNoTrans;
+        PLASMA_enum diag  = PlasmaUnit;
 
-        //sleep(30); 
+        /* Make A square */
+        if (side == PlasmaLeft) {
+            dcA = tiled_matrix_submatrix( (parsec_tiled_matrix_dc_t *)&dcA0, 0, 0, M, M );
+        } else {
+            dcA = tiled_matrix_submatrix( (parsec_tiled_matrix_dc_t *)&dcA0, 0, 0, N, N );
+        }
+
+        /* Compute b = 1/alpha * A * x */
+        dplasma_dtrmm(parsec, side, uplo, trans, diag, 1. / alpha,
+                      dcA, (parsec_tiled_matrix_dc_t *)&dcC);
+
         PASTE_CODE_FLOPS(FLOPS_DTRSM, (side, (DagDouble_t)M, (DagDouble_t)N));
 
         /* Create PaRSEC */
         PASTE_CODE_ENQUEUE_KERNEL(parsec, dtrsm,
                                   (side, uplo, trans, diag, alpha,
-                                   &dcA0, (parsec_tiled_matrix_dc_t *)&dcC));
+                                   dcA, (parsec_tiled_matrix_dc_t *)&dcC));
 
         /* lets rock! */
         PASTE_CODE_PROGRESS_KERNEL(parsec, dtrsm);
 
         dplasma_dtrsm_Destruct( PARSEC_dtrsm );
+        free(dcA);
     }
     else
     {
         int s, u, t, d;
         int info_solution;
 
-        for (s=0; s<1; s++) {
+        for (s=0; s<2; s++) {
             /* Make A square */
-            if (side[s] == dplasmaLeft) {
+            if (side[s] == PlasmaLeft) {
                 dcA = tiled_matrix_submatrix( (parsec_tiled_matrix_dc_t *)&dcA0, 0, 0, M, M );
             } else {
                 dcA = tiled_matrix_submatrix( (parsec_tiled_matrix_dc_t *)&dcA0, 0, 0, N, N );
             }
 
-            for (u=1; u<2; u++) { /* dplasmaLower */
+            for (u=0; u<2; u++) {
 #if defined(PRECISION_z) || defined(PRECISION_c)
                 for (t=0; t<3; t++) {
 #else
-                for (t=0; t<2; t++) { /* dplasmaNoTrans=0, dplasmaTrans=1 */
+                for (t=0; t<2; t++) {
 #endif
-                    for (d=0; d<1; d++) {
+                    for (d=0; d<2; d++) {
 
                         if ( rank == 0 ) {
                             printf("***************************************************\n");
@@ -118,7 +129,7 @@ int main(int argc, char ** argv)
 
                         /* matrix generation */
                         printf("Generate matrices ... ");
-                        dplasma_dlacpy( parsec, dplasmaUpperLower,
+                        dplasma_dlacpy( parsec, PlasmaUpperLower,
                                         (parsec_tiled_matrix_dc_t *)&dcC0,
                                         (parsec_tiled_matrix_dc_t *)&dcC );
                         dplasma_dtrmm(parsec, side[s], uplo[u], trans[t], diag[d], 1./alpha,
@@ -185,14 +196,14 @@ static int check_solution( parsec_context_t *parsec, int loud,
 
     eps = LAPACKE_dlamch_work('e');
 
-    Cinitnorm    = dplasma_dlange( parsec, dplasmaInfNorm, dcC );
-    Cdplasmanorm = dplasma_dlange( parsec, dplasmaInfNorm, dcCfinal );
+    Cinitnorm    = dplasma_dlange( parsec, PlasmaInfNorm, dcC );
+    Cdplasmanorm = dplasma_dlange( parsec, PlasmaInfNorm, dcCfinal );
 
-    dplasma_dgeadd( parsec, dplasmaNoTrans,
+    dplasma_dgeadd( parsec, PlasmaNoTrans,
                     -1.0, (parsec_tiled_matrix_dc_t*)dcC,
                      1.0, (parsec_tiled_matrix_dc_t*)dcCfinal );
 
-    Rnorm = dplasma_dlange( parsec, dplasmaMaxNorm, dcCfinal );
+    Rnorm = dplasma_dlange( parsec, PlasmaMaxNorm, dcCfinal );
 
     result = Rnorm / (Cinitnorm * eps * dplasma_imax(M, N));
 
